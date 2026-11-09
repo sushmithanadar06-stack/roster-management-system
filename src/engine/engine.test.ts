@@ -85,6 +85,14 @@ describe('handling a change', () => {
     )
     expect(left).toEqual([])
   })
+  it('lets one backup cover both processes of the same brand on the same day', () => {
+    const cs = proc('Haven', 'CS')
+    const acc = proc('Haven', 'ACC')
+    const first = suggestBackups(cs, '2026-11-17', ctxFor(changed)).find((s) => s.kind === 'cover')!
+    const covers: Cover[] = [{ employeeId: first.employeeId, processId: cs.id, date: '2026-11-17' }]
+    const next = suggestBackups(acc, '2026-11-17', ctxFor(changed, covers))
+    expect(next[0].employeeId).toBe(first.employeeId)
+  })
   it('flags Lumora when two of its three people are out', () => {
     const r = applyLeaves(roster, [
       { employeeId: emp('Neel'), date: '2026-11-17', type: 'L' },

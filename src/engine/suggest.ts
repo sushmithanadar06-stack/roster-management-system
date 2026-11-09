@@ -19,7 +19,15 @@ export function suggestBackups(p: Process, date: string, ctx: Context): Suggesti
   for (const e of ctx.employees) {
     if (p.employeeIds.includes(e.id)) continue
     if (ctx.roster[e.id]?.[date] !== 'W') continue
-    if (ctx.covers.some((c) => c.employeeId === e.id && c.date === date)) continue
+    // Busy covering a different brand that day? Skip. The same brand is fine: it is the same job.
+    const busyElsewhere = ctx.covers.some(
+      (c) =>
+        c.employeeId === e.id &&
+        c.date === date &&
+        ctx.processes.find((q) => q.id === c.processId)?.brandId !== p.brandId,
+    )
+    if (busyElsewhere) continue
+    const alreadyOnBrand = ctx.covers.some((c) => c.employeeId === e.id && c.date === date)
 
     // Only suggest someone whose own processes stay covered without them
     const mine = ctx.processes.filter((q) => q.employeeIds.includes(e.id))
@@ -29,12 +37,12 @@ export function suggestBackups(p: Process, date: string, ctx: Context): Suggesti
     if (!canSpare) continue
 
     const sameSkill = mine.some((q) => q.name === p.name)
-    const score = (e.podId === mainPod ? 2 : 0) + (sameSkill ? 3 : 0)
+    const score = (e.podId === mainPod ? 2 : 0) + (sameSkill ? 3 : 0) + (alreadyOnBrand ? 4 : 0)
     out.push({
       kind: 'cover',
       employeeId: e.id,
       score,
-      text: `Assign ${e.name} to cover${sameSkill ? ' (same process)' : ''}${e.podId === mainPod ? ' (same pod)' : ''}`,
+      text: `Assign ${e.name} to cover${alreadyOnBrand ? ' (already covering this brand that day)' : ''}${sameSkill ? ' (same process)' : ''}${e.podId === mainPod ? ' (same pod)' : ''}`,
     })
   }
 
