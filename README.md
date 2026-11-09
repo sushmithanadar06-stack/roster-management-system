@@ -42,26 +42,38 @@ A process's operating calendar is separate from an employee's own schedule. A pr
 
 ## How I think
 
-1. How did I model employees, brands, processes, pods and their relationships?
-   Pods hold employees. Brands hold processes. Employees and processes are linked many-to-many through each process's list of employee ids, so one person can handle several processes or brands. Rules (calendar and minimum coverage) belong to the process, not the brand, because processes within the same brand can differ.
+### 1. How did I model employees, brands, processes, pods and their relationships?
+Pods hold employees, and each pod has a lead (an employee). Brands hold processes (CS, ACC, NDR, RET). Employees and processes are linked many-to-many: each process has a list of employee ids, so one person can work on several processes or brands (for example, one backup employee is shared by two brands). The rules belong to the process, not the brand: its operating calendar (365 days, every day except public holidays, or closed on Sundays and public holidays) and its minimum coverage. This is because two processes in the same brand can follow different rules. The process calendar is kept separate from each employee's own daily status (Working, Weekly off, Public holiday, Leave, Comp-off).
 
-2. How does the system generate a roster and check the constraints?
-   (to be filled after the engine is built)
+### 2. How does the system generate a roster and check the constraints?
+The generator works in stages.
+1. If none of an employee's processes is open on a day, that day is a day off by itself (a weekly off on a Sunday, or a public holiday).
+2. Approved leaves and comp-offs are placed.
+3. Each employee gets one weekly off in every week of four days or more. For each day of the week the engine gives a score and picks the lowest. A day gets +1000 if taking it would leave one of the employee's processes below its minimum, +2 for each person already off that day (to spread offs out), +300 if it would cause 7 or more working days in a row, and -8 if it is the employee's preferred day.
 
-3. How are single-resource brands and multi-employee brands handled?
-   Both use the same model. A brand's staffing is just the set of employees across its processes. A single-resource brand has no spare capacity, so a weekly off or leave on an operating day creates a coverage gap. The system closes this by choosing the weekly off on a day the brand is closed (for example Sunday) where it can, and otherwise flagging the gap and suggesting a backup. Multi-employee brands can spread weekly offs so that the minimum is still met.
+The validator then checks every process on every day it is open. It counts the people working (plus any manager-assigned covers) and compares that with the minimum. I wrote 11 automated tests for the calendar rules, the generator, the validator and the change handling.
 
-4. What happens when an employee who manages all processes for a brand is unavailable on a required day?
-   (to be filled after the change handling is built)
+### 3. How are single-resource brands and multi-employee brands handled?
+Both use the same model: a brand's staffing is the set of employees on its processes. A single-resource brand has no spare capacity, so any weekly off or leave on a day it is open creates a coverage gap. The generator avoids this where it can, by putting the weekly off on a day the brand is closed (for example, Sunday). Brands with two or three employees spread their weekly offs across different days so the minimum still holds. For example, one brand needs 2 of its 3 people working every day, and the generator staggers their offs to make that possible.
 
-5. How does the system handle conflicting requirements or insufficient staffing?
-   (to be filled)
+### 4. What happens when an employee who manages all processes for a brand is unavailable on a required day?
+The validator raises one error per process and day, for example: "No one available: Haven CS. Tue 17 Nov: 0 working, 1 required. Assigned: Rohan (L)". The roster cannot be published while errors remain. For each gap the system suggests up to three backups: people who are working that day, who are not already covering a different brand, and whose own processes would still meet their minimum without them. It ranks people with the same process, the same pod, or those already covering that brand that day first. It can also suggest asking an assigned person to work their weekly off and owing them a comp-off. The manager clicks a suggestion to apply it, and the error clears. If no safe backup exists, the issue says so and is left for a manager decision.
 
-6. What did I automate, and what stays under human control?
-   (to be filled)
+### 5. How does the system handle conflicting requirements or insufficient staffing?
+Rules have two levels. Client coverage is mandatory and shows as an error. Preferences and wellbeing rules (the preferred weekly-off day, and more than 6 working days in a row) show as warnings. Coverage always wins over preference. The generator never silently breaks coverage: it penalises such days heavily, and if no safe day exists, the validator flags the resulting gap. Nothing is hidden, and publishing is blocked until the errors are resolved.
 
-7. What would change if the company doubled its team and brand count?
-   (to be filled)
+### 6. Which parts did I automate, and which are left under human control?
+Automated: applying the operating calendars, placing weekly offs, checking coverage on every process and day, and suggesting backups. Human: entering and approving leaves, accepting or rejecting a backup, manual edits to any cell, and publishing. The tool never changes the roster on its own to fix a gap. Rosters affect people's days off and client commitments, so the manager should make the final decision.
 
-8. What would I improve first with one more week?
-   (to be filled)
+### 7. If the company doubled its team and brand count, what would I change?
+I would move the data from a seed file to a database behind an API, add logins and roles for managers and pod leads, and keep an audit log of changes. I would precompute lookups (employee to processes, process to employees) so the engine scales, and virtualise the roster grid so large tables stay fast. If the greedy weekly-off placement starts to get stuck, I would replace it with a constraint solver such as OR-Tools, using the same rules as constraints.
+
+### 8. If I had one more week, what would I improve first?
+First, the Setup screens, so a manager can add, edit and remove employees, brands, processes and rules in the browser (today they are edited in the seed file). Second, saving data so a roster survives a page refresh. After that: fairer sharing of weekly offs over the months, regeneration that moves as few existing offs as possible after a change, CSV export, and an approval flow for pod leads.
+
+## Current limitations
+- Data lives in memory in the browser, so a refresh resets the roster to the sample data.
+- Employees, brands and rules are edited in `src/seedData.ts`, not in a screen yet.
+- Full-day shifts only, with no shift timings.
+- Public holidays in the sample data cover November 2026 only.
+- Months with no holidays defined show no public holidays.
