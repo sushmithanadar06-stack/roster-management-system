@@ -60,5 +60,26 @@ select, input { background: var(--sf); border: 1px solid var(--ln); border-radiu
 .row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
 .issue { border: 1px solid var(--ln); border-left: 4px solid var(--er); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; cursor: pointer; }
 .issue.warning { border-left-color: var(--wr); }
+
 .issue small { display: block; color: var(--mut); }
 .issue .fix { display: block; width: 100%; text-align: left; margin-top: 6px; font-size: 13px; }
+
+/* Setup tab */
+.tabs { display: flex; gap: 2px; margin-left: 12px; }
+.tabs button { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; font-weight: 600; color: var(--mut); }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--ac); }
+.setup { padding: 14px 16px; max-width: 1200px; }
+.setup .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 800px) { .setup .two { grid-template-columns: 1fr; } }
+.grid-wrap.tall { max-height: 50vh; }
+.st { border-collapse: collapse; width: 100%; font-size: 13px; }
+.st th, .st td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--ln); vertical-align: top; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 8px; border: 1px solid var(--ln); border-radius: 999px; background: var(--bg); }
+.chip button { border: 0; background: none; padding: 0 6px; font-size: 15px; line-height: 1; }
+.num { width: 54px; }
+.days { display: flex; gap: 4px; }
+.days label { display: flex; flex-direction: column; font-size: 11px; color: var(--mut); }
+.days .num { width: 40px; padding: 3px 4px; }
+.item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--ln); }
+.setupmsg { margin: 14px 16px 0; }

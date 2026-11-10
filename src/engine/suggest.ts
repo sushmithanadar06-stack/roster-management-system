@@ -1,5 +1,5 @@
 import type { Process } from '../types'
-import { isOperating } from './calendar'
+import { isOperating, minFor } from './calendar'
 import type { Context } from './engineTypes'
 import { countWorking } from './validate'
 
@@ -32,7 +32,7 @@ export function suggestBackups(p: Process, date: string, ctx: Context): Suggesti
     // Only suggest someone whose own processes stay covered without them
     const mine = ctx.processes.filter((q) => q.employeeIds.includes(e.id))
     const canSpare = mine.every(
-      (q) => !isOperating(q.rule, date, ctx.holidays) || countWorking(q, date, ctx) - 1 >= q.minCoverage,
+      (q) => !isOperating(q.rule, date, ctx.holidays) || countWorking(q, date, ctx) - 1 >= minFor(q, date),
     )
     if (!canSpare) continue
 

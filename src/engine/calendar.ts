@@ -1,4 +1,4 @@
-import type { Holiday, Rule } from '../types'
+import type { Holiday, Process, Rule } from '../types'
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -49,4 +49,9 @@ export function shortDate(date: string): string {
     month: 'short',
     timeZone: 'UTC',
   })
+}
+
+// Minimum people needed on this date: a weekday override if one is set, else the process minimum
+export function minFor(p: Process, date: string): number {
+  return p.minByWeekday?.[dayOfWeek(date)] ?? p.minCoverage
 }

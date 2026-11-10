@@ -32,6 +32,7 @@ export interface Process {
   name: string // CS, ACC, NDR, RET ...
   rule: Rule
   minCoverage: number // minimum people working on every day the process operates
+  minByWeekday?: Partial<Record<number, number>> // optional minimum for one weekday (0 = Sunday)
   employeeIds: string[] // many-to-many: one person can appear in several processes
 }
 

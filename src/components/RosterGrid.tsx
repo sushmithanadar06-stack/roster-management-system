@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
-import { dayOfWeek, isHoliday, isOperating, monthDates, shortDate } from '../engine/calendar'
+import { dayOfWeek, isHoliday, isOperating, minFor, monthDates, shortDate } from '../engine/calendar'
 import type { Context } from '../engine/engineTypes'
 import { countWorking } from '../engine/validate'
 import type { Employee, Pod, Process, RosterStatus } from '../types'
@@ -128,7 +128,7 @@ export default function RosterGrid({ ctx, pods, view, selectedId, cell, highligh
           const n = countWorking(p, d, ctx)
           const hl = highlight?.processId === p.id && highlight.date === d
           return (
-            <td key={d} className={`cov ${n >= p.minCoverage ? 'ok' : 'bad'}${hl ? ' hl' : ''}`}>
+            <td key={d} className={`cov ${n >= minFor(p, d) ? 'ok' : 'bad'}${hl ? ' hl' : ''}`}>
               {n}
             </td>
           )

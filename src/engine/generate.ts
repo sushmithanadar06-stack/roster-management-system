@@ -1,7 +1,6 @@
 import type { Employee, Holiday, Leave, Process } from '../types'
 import type { Roster } from './engineTypes'
-import { dayOfWeek, isHoliday, isOperating, monthDates, weeksOf } from './calendar'
-
+import { dayOfWeek, isHoliday, isOperating, minFor, monthDates, weeksOf } from './calendar'
 interface Input {
   year: number
   month: number
@@ -68,7 +67,7 @@ export function generateRoster(input: Input): Roster {
         for (const p of mine) {
           if (!isOperating(p.rule, d, holidays)) continue
           const others = p.employeeIds.filter((x) => x !== e.id && roster[x]?.[d] === 'W').length
-          if (others < p.minCoverage) score += 1000 // would break coverage
+          if (others < minFor(p, d)) score += 1000
         }
         if (e.preferredOffDay === dayOfWeek(d)) score -= 8 // preference
 

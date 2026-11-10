@@ -1,18 +1,27 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import RosterGrid from './components/RosterGrid'
+import SetupPanel from './components/SetupPanel'
 import SidePanel from './components/SidePanel'
-import type { Context, Cover, Roster } from './engine/engineTypes'
+import type { Context, Cover, Issue, Roster } from './engine/engineTypes'
 import { applyLeaves, generateRoster } from './engine/generate'
 import type { Suggestion } from './engine/suggest'
-import type { Issue } from './engine/engineTypes'
 import { validateRoster } from './engine/validate'
-import { brands, employees, holidays, leaves as seedLeaves, pods, processes } from './seedData'
+import type { AppData, Saved } from './storage'
+import { clearSaved, loadSaved, sampleData, saveState } from './storage'
 import type { Leave, RosterStatus } from './types'
 import type { CellRef, Highlight, ViewKind } from './ui'
 import { STATUS_LABEL } from './ui'
 
-const plan = (leaves: Leave[], year: number, month: number): Roster =>
-  generateRoster({ year, month, employees, processes, holidays, leaves })
+const plan = (d: AppData, year: number, month: number): Roster =>
+  generateRoster({ year, month, employees: d.employees, processes: d.processes, holidays: d.holidays, leaves: d.leaves })
+
+// Start from what the browser saved, or from the sample data
+function startState(): Saved {
+  const saved = loadSaved()
+  if (saved) return saved
+  const data = sampleData()
+  return { data, year: 2026, month: 11, roster: plan(data, 2026, 11), covers: [] }
+}
 
 const VIEWS: { id: ViewKind; label: string }[] = [
   { id: 'company', label: 'Company view' },
@@ -23,20 +32,27 @@ const VIEWS: { id: ViewKind; label: string }[] = [
 ]
 
 export default function App() {
-  const [ym, setYm] = useState({ year: 2026, month: 11 })
-  const [leaves, setLeaves] = useState<Leave[]>(seedLeaves)
-  const [roster, setRoster] = useState<Roster>(() => plan(seedLeaves, 2026, 11))
-  const [covers, setCovers] = useState<Cover[]>([])
+  const [start] = useState(startState)
+  const [data, setData] = useState<AppData>(start.data)
+  const [ym, setYm] = useState({ year: start.year, month: start.month })
+  const [roster, setRoster] = useState<Roster>(start.roster)
+  const [covers, setCovers] = useState<Cover[]>(start.covers)
+  const [tab, setTab] = useState<'roster' | 'setup'>('roster')
   const [view, setView] = useState<ViewKind>('company')
   const [pickedId, setPickedId] = useState('')
   const [cell, setCell] = useState<CellRef | null>(null)
   const [highlight, setHighlight] = useState<Highlight | null>(null)
   const [message, setMessage] = useState('')
   const [published, setPublished] = useState(false)
+  const { pods, employees, brands, processes, holidays } = data
+
+  useEffect(() => {
+    saveState({ data, year: ym.year, month: ym.month, roster, covers })
+  }, [data, ym, roster, covers])
 
   const ctx: Context = useMemo(
     () => ({ year: ym.year, month: ym.month, employees, brands, processes, holidays, roster, covers }),
-    [ym, roster, covers],
+    [ym, employees, brands, processes, holidays, roster, covers],
   )
   const issues = useMemo(() => validateRoster(ctx), [ctx])
   const errors = issues.filter((i) => i.severity === 'error').length
@@ -65,22 +81,42 @@ export default function App() {
     setCell(null)
   }
 
+  // Setup changes: save the new data and re-plan the roster
+  function changeData(next: AppData, text: string) {
+    setData(next)
+    setRoster(plan(next, ym.year, ym.month))
+    resetView()
+    setPublished(false)
+    setMessage(text)
+  }
+
   function goMonth(delta: number) {
     let y = ym.year
     let m = ym.month + delta
     if (m > 12) { m = 1; y++ }
     if (m < 1) { m = 12; y-- }
     setYm({ year: y, month: m })
-    setRoster(plan(leaves, y, m))
+    setRoster(plan(data, y, m))
     resetView()
     setMessage('')
   }
 
   function regenerate(text: string) {
-    setRoster(plan(leaves, ym.year, ym.month))
+    setRoster(plan(data, ym.year, ym.month))
     resetView()
     setPublished(false)
     setMessage(text)
+  }
+
+  function resetSample() {
+    clearSaved()
+    const fresh = sampleData()
+    setData(fresh)
+    setYm({ year: 2026, month: 11 })
+    setRoster(plan(fresh, 2026, 11))
+    resetView()
+    setPublished(false)
+    setMessage('Sample data restored.')
   }
 
   function setStatus(c: CellRef, s: RosterStatus) {
@@ -90,7 +126,10 @@ export default function App() {
 
   function addLeaves(ls: Leave[]): Roster {
     const next = applyLeaves(roster, ls)
-    setLeaves((prev) => [...prev.filter((p) => !ls.some((l) => l.employeeId === p.employeeId && l.date === p.date)), ...ls])
+    setData((d) => ({
+      ...d,
+      leaves: [...d.leaves.filter((p) => !ls.some((l) => l.employeeId === p.employeeId && l.date === p.date)), ...ls],
+    }))
     setRoster(next)
     return next
   }
@@ -106,7 +145,10 @@ export default function App() {
     const who = kind === 'single' ? 'Rohan' : 'Farah'
     const brand = brands.find((b) => b.name === (kind === 'single' ? 'Haven' : 'Lumora'))
     const emp = employees.find((e) => e.name.startsWith(who))
-    if (!brand || !emp) return
+    if (!brand || !emp) {
+      setMessage('The demo needs the sample people and brands. Use Reset to sample data in Setup.')
+      return
+    }
     const days = kind === 'single' ? [17, 18] : [17, 18, 19]
     const ls: Leave[] = days.map((d) => ({
       employeeId: emp.id,
@@ -171,6 +213,10 @@ export default function App() {
     <>
       <header className="top">
         <h1>Roster Desk</h1>
+        <nav className="tabs">
+          <button className={tab === 'roster' ? 'on' : ''} onClick={() => setTab('roster')}>Roster</button>
+          <button className={tab === 'setup' ? 'on' : ''} onClick={() => setTab('setup')}>Setup</button>
+        </nav>
         <span className="spacer" />
         <button onClick={() => goMonth(-1)} aria-label="Previous month">‹</button>
         <b>{monthName}</b>
@@ -181,67 +227,68 @@ export default function App() {
         <button onClick={onPublish}>{published && errors === 0 ? 'Published ✓' : 'Publish'}</button>
       </header>
 
-      <main className="layout">
-        <section>
-          <div className="card stats">
-            <span><b>{employees.length}</b> employees</span>
-            <span><b>{brands.length}</b> brands</span>
-            <span><b>{processes.length}</b> processes</span>
-            <span className="err"><b>{errors}</b> errors</span>
-            <span><b>{issues.length - errors}</b> warnings</span>
-          </div>
-          {message && <div className="msg" role="status">{message}</div>}
+      {tab === 'setup' ? (
+        <>
+          {message && <div className="msg setupmsg" role="status">{message}</div>}
+          <SetupPanel data={data} onChange={changeData} onReset={resetSample} />
+        </>
+      ) : (
+        <main className="layout">
+          <section>
+            <div className="card stats">
+              <span><b>{employees.length}</b> employees</span>
+              <span><b>{brands.length}</b> brands</span>
+              <span><b>{processes.length}</b> processes</span>
+              <span className="err"><b>{errors}</b> errors</span>
+              <span><b>{issues.length - errors}</b> warnings</span>
+            </div>
+            {message && <div className="msg" role="status">{message}</div>}
 
-          <div className="toolbar">
-            <select
-              value={view}
-              onChange={(e) => {
-                setView(e.target.value as ViewKind)
-                setPickedId('')
-                setHighlight(null)
-              }}
-              aria-label="View"
-            >
-              {VIEWS.map((v) => (
-                <option key={v.id} value={v.id}>{v.label}</option>
-              ))}
-            </select>
-            {options.length > 0 && (
-              <select value={selectedId} onChange={(e) => { setPickedId(e.target.value); setHighlight(null) }} aria-label="Choose">
-                {options.map((o) => (
-                  <option key={o.id} value={o.id}>{o.label}</option>
+            <div className="toolbar">
+              <select
+                value={view}
+                onChange={(e) => {
+                  setView(e.target.value as ViewKind)
+                  setPickedId('')
+                  setHighlight(null)
+                }}
+                aria-label="View"
+              >
+                {VIEWS.map((v) => (
+                  <option key={v.id} value={v.id}>{v.label}</option>
                 ))}
               </select>
-            )}
-            <span className="legend">
-              {(['W', 'WO', 'PH', 'L', 'CO'] as RosterStatus[]).map((s) => (
-                <span key={s} className={`s-${s}`}>{s} {STATUS_LABEL[s]}</span>
-              ))}
-            </span>
-          </div>
+              {options.length > 0 && (
+                <select value={selectedId} onChange={(e) => { setPickedId(e.target.value); setHighlight(null) }} aria-label="Choose">
+                  {options.map((o) => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </select>
+              )}
+              <span className="legend">
+                {(['W', 'WO', 'PH', 'L', 'CO'] as RosterStatus[]).map((s) => (
+                  <span key={s} className={`s-${s}`}>{s} {STATUS_LABEL[s]}</span>
+                ))}
+              </span>
+            </div>
 
-          <RosterGrid ctx={ctx} pods={pods} view={view} selectedId={selectedId} cell={cell} highlight={highlight} onCell={setCell} />
-        </section>
+            <RosterGrid ctx={ctx} pods={pods} view={view} selectedId={selectedId} cell={cell} highlight={highlight} onCell={setCell} />
+          </section>
 
-        <SidePanel
-          ctx={ctx}
-          issues={issues}
-          cell={cell}
-          onSetStatus={setStatus}
-          onIssue={onIssue}
-          onApply={onApply}
-          onAddLeave={onAddLeave}
-          onDemo={onDemo}
-          onReplan={() => regenerate('Weekly offs re-planned around all leaves and comp-offs.')}
-          onReset={() => {
-            setLeaves(seedLeaves)
-            setRoster(plan(seedLeaves, ym.year, ym.month))
-            resetView()
-            setPublished(false)
-            setMessage('Sample data restored.')
-          }}
-        />
-      </main>
+          <SidePanel
+            ctx={ctx}
+            issues={issues}
+            cell={cell}
+            onSetStatus={setStatus}
+            onIssue={onIssue}
+            onApply={onApply}
+            onAddLeave={onAddLeave}
+            onDemo={onDemo}
+            onReplan={() => regenerate('Weekly offs re-planned around all leaves and comp-offs.')}
+            onReset={resetSample}
+          />
+        </main>
+      )}
     </>
   )
 }

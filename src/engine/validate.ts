@@ -1,5 +1,5 @@
 import type { Process } from '../types'
-import { dayOfWeek, isOperating, monthDates, shortDate } from './calendar'
+import { dayOfWeek, isOperating, minFor, monthDates, shortDate } from './calendar'
 import type { Context, Issue } from './engineTypes'
 
 // How many people are working on this process on this date (own staff plus assigned covers)
@@ -22,14 +22,14 @@ export function validateRoster(ctx: Context): Issue[] {
     for (const d of dates) {
       if (!isOperating(p.rule, d, ctx.holidays)) continue
       const n = countWorking(p, d, ctx)
-      if (n >= p.minCoverage) continue
+      if (n >= minFor(p, d)) continue
       const team = p.employeeIds.map((id) => `${first(id)} (${ctx.roster[id]?.[d] ?? '?'})`).join(', ')
       issues.push({
         severity: 'error',
         processId: p.id,
         date: d,
         title: `${n === 0 ? 'No one available' : 'Below minimum'}: ${brandName(p.brandId)} ${p.name}`,
-        detail: `${shortDate(d)}: ${n} working, ${p.minCoverage} required. Assigned: ${team}`,
+        detail: `${shortDate(d)}: ${n} working, ${minFor(p, d)} required. Assigned: ${team}`,
       })
     }
   }
