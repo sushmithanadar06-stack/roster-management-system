@@ -51,7 +51,7 @@ The generator works in stages.
 2. Approved leaves and comp-offs are placed.
 3. Each employee gets one weekly off in every week of four days or more. For each day of the week the engine gives a score and picks the lowest. A day gets +1000 if taking it would leave one of the employee's processes below its minimum, +2 for each person already off that day (to spread offs out), +300 if it would cause 7 or more working days in a row, and -8 if it is the employee's preferred day.
 
-The validator then checks every process on every day it is open. It counts the people working (plus any manager-assigned covers) and compares that with the minimum. I wrote 11 automated tests for the calendar rules, the generator, the validator and the change handling.
+The validator then checks every process on every day it is open. It counts the people working (plus any manager-assigned covers) and compares that with the minimum. I wrote 13 automated tests for the calendar rules, the generator, the validator and the change handling.
 
 ### 3. How are single-resource brands and multi-employee brands handled?
 Both use the same model: a brand's staffing is the set of employees on its processes. A single-resource brand has no spare capacity, so any weekly off or leave on a day it is open creates a coverage gap. The generator avoids this where it can, by putting the weekly off on a day the brand is closed (for example, Sunday). Brands with two or three employees spread their weekly offs across different days so the minimum still holds. For example, one brand needs 2 of its 3 people working every day, and the generator staggers their offs to make that possible.
@@ -69,11 +69,16 @@ Automated: applying the operating calendars, placing weekly offs, checking cover
 I would move the data from a seed file to a database behind an API, add logins and roles for managers and pod leads, and keep an audit log of changes. I would precompute lookups (employee to processes, process to employees) so the engine scales, and virtualise the roster grid so large tables stay fast. If the greedy weekly-off placement starts to get stuck, I would replace it with a constraint solver such as OR-Tools, using the same rules as constraints.
 
 ### 8. If I had one more week, what would I improve first?
-First, the Setup screens, so a manager can add, edit and remove employees, brands, processes and rules in the browser (today they are edited in the seed file). Second, saving data so a roster survives a page refresh. After that: fairer sharing of weekly offs over the months, regeneration that moves as few existing offs as possible after a change, CSV export, and an approval flow for pod leads.
+First, move the data from the browser to a real database with logins, so several managers can work on the same roster. Second, fairer sharing of weekly offs over several months, and regeneration that moves as few existing offs as possible after a change. After that: CSV export, an approval flow for pod leads, notifications when a published roster changes, and a constraint solver for very large teams.
+
+## Setup tab
+Managers can add, edit and remove employees, pods and pod leads, brands, processes (operating calendar, minimum staff, optional minimum for a specific weekday, assigned people), public holidays, and leaves and comp-offs, all in the browser. The roster is re-planned after every change. No code changes are needed. Everything is saved in the browser (local storage), so a refresh keeps the data. "Reset to sample data" restores the 32-employee sample.
+
+## Tests
+`npm test` runs 13 automated tests for the calendar rules, roster generation, conflict detection, backup suggestions and weekday minimums.
 
 ## Current limitations
-- Data lives in memory in the browser, so a refresh resets the roster to the sample data.
-- Employees, brands and rules are edited in `src/seedData.ts`, not in a screen yet.
+- Data is saved in the browser only (no shared database, no logins).
 - Full-day shifts only, with no shift timings.
-- Public holidays in the sample data cover November 2026 only.
-- Months with no holidays defined show no public holidays.
+- Sample public holidays cover November 2026 only. Other months have none until added in Setup.
+- The weekly-off placement is a greedy scoring method, not a full optimiser. It always reports a gap instead of hiding it.
